@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/examples/">
+    <Project Path="examples/Altcha.Example.Sentinel/Altcha.Example.Sentinel.csproj" />
+    <Project Path="examples/Altcha.Example/Altcha.Example.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/Altcha.AspNetCore/Altcha.AspNetCore.csproj" />
+    <Project Path="src/Altcha/Altcha.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Altcha.AspNetCore.Tests/Altcha.AspNetCore.Tests.csproj" />
+    <Project Path="tests/Altcha.Tests/Altcha.Tests.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,55 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  test:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v7
+
+      # SDK 10 builds everything (global.json); the 8.0 runtime runs the net8.0 tests.
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - run: dotnet restore Altcha.slnx
+      - run: dotnet build Altcha.slnx -c Release --no-restore
+      - run: dotnet test Altcha.slnx -c Release --no-build
+
+  pack:
+    name: Pack
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+      - run: dotnet pack src/Altcha/Altcha.csproj -c Release -o artifacts
+      - run: dotnet pack src/Altcha.AspNetCore/Altcha.AspNetCore.csproj -c Release -o artifacts
+      - uses: actions/upload-artifact@v7
+        with:
+          name: packages
+          path: artifacts/
+          retention-days: 7

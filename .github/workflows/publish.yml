@@ -1,0 +1,94 @@
+name: publish
+
+# Publishes Altcha and Altcha.AspNetCore to nuget.org when a version tag is pushed,
+# e.g. `v1.0.0` or `v1.1.0-beta.1`. The package version is taken from the tag.
+#
+# Authentication uses NuGet trusted publishing (GitHub OIDC), so no API key is stored.
+# nuget.org policy: Repository Owner `altcha-org`, Repository `altcha-lib-dotnet`,
+# Workflow File `publish.yml`, Environment `release`.
+# Repository secret NUGET_USER: the nuget.org profile name (not the email) that owns the policy.
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-*'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: publish
+  cancel-in-progress: false
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  build:
+    name: Test and pack
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Read version from tag
+        id: version
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          if ! [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::Tag '$GITHUB_REF_NAME' is not a valid version tag (expected vMAJOR.MINOR.PATCH[-PRERELEASE])."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: |
+            8.0.x
+            10.0.x
+
+      - run: dotnet restore Altcha.slnx
+      - run: dotnet build Altcha.slnx -c Release --no-restore -p:Version=${{ steps.version.outputs.version }}
+      - run: dotnet test Altcha.slnx -c Release --no-build
+
+      - run: dotnet pack src/Altcha/Altcha.csproj -c Release --no-build -o artifacts -p:Version=${{ steps.version.outputs.version }}
+      - run: dotnet pack src/Altcha.AspNetCore/Altcha.AspNetCore.csproj -c Release --no-build -o artifacts -p:Version=${{ steps.version.outputs.version }}
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: packages
+          path: artifacts/
+          if-no-files-found: error
+
+  publish:
+    name: Publish to nuget.org
+    needs: build
+    runs-on: ubuntu-latest
+    environment: release
+    permissions:
+      id-token: write # GitHub OIDC token for NuGet trusted publishing
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: packages
+          path: artifacts
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 10.0.x
+
+      # Exchanges the OIDC token for a NuGet API key valid for 1 hour.
+      - name: NuGet login
+        id: login
+        uses: NuGet/login@v1
+        with:
+          user: ${{ secrets.NUGET_USER }}
+
+      # Pushes each .nupkg together with its .snupkg symbol package.
+      - name: Push packages
+        run: >
+          dotnet nuget push "artifacts/*.nupkg"
+          --api-key "${{ steps.login.outputs.NUGET_API_KEY }}"
+          --source https://api.nuget.org/v3/index.json
+          --skip-duplicate

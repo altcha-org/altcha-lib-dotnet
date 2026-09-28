@@ -1,0 +1,25 @@
+@page
+@model Altcha.Example.Pages.IndexModel
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <title>ALTCHA ASP.NET Core example</title>
+    <script type="module" src="https://cdn.jsdelivr.net/npm/altcha@3/dist/main/altcha.min.js"></script>
+</head>
+<body>
+    <h1>ALTCHA ASP.NET Core example</h1>
+    <form method="post">
+        <p>
+            <label for="message">Message</label>
+            <input id="message" name="message" type="text" />
+        </p>
+        <altcha-widget></altcha-widget>
+        <button type="submit">Submit</button>
+    </form>
+    @if (Model.Status is not null)
+    {
+        <p id="status">@Model.Status</p>
+    }
+</body>
+</html>
