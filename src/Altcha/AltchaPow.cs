@@ -126,8 +126,9 @@ public static class AltchaPow
         var keyLength = options.KeyLength > 0 ? options.KeyLength : DefaultKeyLength;
         var prefixLength = options.KeyPrefixLength > 0 ? options.KeyPrefixLength : keyLength / 2;
 
-        var saltBytes = RandomNumberGenerator.GetBytes(12);
-        var nonceBytes = RandomNumberGenerator.GetBytes(12);
+        // 16 random bytes each, as in JS.
+        var saltBytes = RandomNumberGenerator.GetBytes(16);
+        var nonceBytes = RandomNumberGenerator.GetBytes(16);
 
         // Issued lowercase, like prefixes taken from the derived key.
         var keyPrefix = string.IsNullOrEmpty(options.KeyPrefix) ? DefaultKeyPrefix : options.KeyPrefix.ToLowerInvariant();
