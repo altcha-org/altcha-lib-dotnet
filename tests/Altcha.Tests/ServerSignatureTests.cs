@@ -54,7 +54,9 @@ public class ServerSignatureTests
     [Theory]
     [InlineData("-5", true)]
     [InlineData("0", false)]
-    public void NonPositiveExpire(string expire, bool expired)
+    [InlineData("1.5", true)]
+    [InlineData("4102444800.5", false)]
+    public void ExpireEdgeValues(string expire, bool expired)
     {
         var result = ServerSignature.Verify(Sign($"expire={expire}&verified=true"), Key);
 

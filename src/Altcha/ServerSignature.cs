@@ -46,7 +46,7 @@ public static class ServerSignature
                     vd.Classification = value;
                     break;
                 case "expire":
-                    vd.Expire = ParseInt64(value);
+                    vd.Expire = ParseDouble(value);
                     break;
                 case "fields":
                     vd.Fields = ParseList(value);

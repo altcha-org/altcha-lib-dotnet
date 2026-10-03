@@ -43,9 +43,9 @@ public sealed class ChallengeParameters
     [JsonPropertyName("parallelism")]
     public int? Parallelism { get; set; }
 
-    /// <summary>Expiry as unix seconds.</summary>
+    /// <summary>Expiry as unix seconds; may be fractional (JS issuers sign any number). 0 means no expiry.</summary>
     [JsonPropertyName("expiresAt")]
-    public long? ExpiresAt { get; set; }
+    public double? ExpiresAt { get; set; }
 
     /// <summary>Arbitrary signed data attached to the challenge.</summary>
     [JsonPropertyName("data")]
@@ -147,10 +147,10 @@ public sealed class ServerSignatureVerificationData
     [JsonConverter(typeof(LenientObjectConverter<SentinelCheck>))]
     public SentinelCheck? Email { get; set; }
 
-    /// <summary>Expiry as unix seconds.</summary>
+    /// <summary>Expiry as unix seconds; may be fractional. 0 means no expiry.</summary>
     [JsonPropertyName("expire")]
-    [JsonConverter(typeof(LenientInt64Converter))]
-    public long? Expire { get; set; }
+    [JsonConverter(typeof(LenientDoubleConverter))]
+    public double? Expire { get; set; }
 
     /// <summary>Names of the fields covered by <see cref="FieldsHash"/>.</summary>
     [JsonPropertyName("fields")]

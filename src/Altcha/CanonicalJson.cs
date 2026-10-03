@@ -39,7 +39,7 @@ internal static class CanonicalJson
         if (p.ExpiresAt is { } expiresAt and not 0)
         {
             WriteKey(sb, "expiresAt");
-            sb.Append(expiresAt.ToString(CultureInfo.InvariantCulture));
+            sb.Append(double.IsFinite(expiresAt) ? JsNumber.Format(expiresAt) : "null");
         }
 
         WriteKey(sb, "keyLength");

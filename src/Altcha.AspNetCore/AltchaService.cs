@@ -31,6 +31,9 @@ public sealed partial class AltchaService : IAltchaService
     private const string InvalidPayload = "ALTCHA payload is invalid.";
     private const string PayloadAlreadyUsed = "PAYLOAD_ALREADY_USED";
 
+    // Latest expiry DateTimeOffset can represent once the 30 s claim margin is added.
+    private static readonly double MaxClaimUnixSeconds = DateTimeOffset.MaxValue.ToUnixTimeSeconds() - 60;
+
     private readonly IOptionsMonitor<AltchaOptions> _options;
     private readonly IAltchaReplayStore _replayStore;
     private readonly IHttpClientFactory _httpClientFactory;
@@ -326,7 +329,7 @@ public sealed partial class AltchaService : IAltchaService
         };
     }
 
-    private async ValueTask<bool> TryClaimAsync(AltchaOptions options, string scope, string? id, long? expiry, CancellationToken cancellationToken)
+    private async ValueTask<bool> TryClaimAsync(AltchaOptions options, string scope, string? id, double? expiry, CancellationToken cancellationToken)
     {
         if (!options.ReplayProtection || string.IsNullOrEmpty(id))
         {
@@ -334,7 +337,9 @@ public sealed partial class AltchaService : IAltchaService
         }
 
         var now = DateTimeOffset.UtcNow;
-        var expiresAt = expiry > 0 ? DateTimeOffset.FromUnixTimeSeconds(expiry.Value).AddSeconds(30) : now.AddHours(1);
+        var expiresAt = expiry > 0
+            ? DateTimeOffset.UnixEpoch.AddSeconds(Math.Min(expiry.Value, MaxClaimUnixSeconds)).AddSeconds(30)
+            : now.AddHours(1);
         var minimum = now.AddSeconds(1);
         if (expiresAt < minimum)
         {
