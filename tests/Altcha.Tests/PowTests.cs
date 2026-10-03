@@ -53,6 +53,59 @@ public class PowTests
         Assert.False(result.InvalidSolution);
     }
 
+    public static TheoryData<string, ChallengeParameters> WireRoundTripCases()
+    {
+        static ChallengeParameters Parameters(string algorithm) => new()
+        {
+            Algorithm = algorithm,
+            Nonce = "000102030405060708090a0b0c0d0e0f",
+            Salt = "101112131415161718191a1b1c1d1e1f",
+            KeyPrefix = "0",
+            Cost = 1,
+            KeyLength = 32,
+        };
+
+        var zeroes = Parameters("SHA-256");
+        zeroes.ExpiresAt = 0;
+        zeroes.MemoryCost = 0;
+        zeroes.Parallelism = 0;
+        zeroes.KeySignature = "";
+        zeroes.Data = [];
+        var data = new Dictionary<string, object?> { ["b"] = 1, ["a"] = new object?[] { "é", null } };
+        return new()
+        {
+            { "Default", AltchaPow.CreateChallenge(new CreateChallengeOptions { Algorithm = "PBKDF2/SHA-256", Cost = 1, HmacSignatureSecret = Secret }).Parameters },
+            { "Web", AltchaPow.CreateChallenge(new CreateChallengeOptions { Algorithm = "PBKDF2/SHA-256", Cost = 1, HmacSignatureSecret = Secret }).Parameters },
+            { "Web", AltchaPow.CreateChallenge(new CreateChallengeOptions { Algorithm = "SHA-256", Cost = 1, Data = data, ExpiresAt = DateTimeOffset.UtcNow.AddHours(1), HmacSignatureSecret = Secret }).Parameters },
+            { "Web", zeroes },
+            { "Altcha", zeroes },
+        };
+    }
+
+    [Theory]
+    [MemberData(nameof(WireRoundTripCases))]
+    public void ChallengeVerifiesAfterWireRoundTripWithAnySerializerOptions(string serializer, ChallengeParameters parameters)
+    {
+        var options = serializer switch
+        {
+            "Default" => new System.Text.Json.JsonSerializerOptions(),
+            "Web" => new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web),
+            _ => AltchaJson.SerializerOptions,
+        };
+        var issued = new Challenge
+        {
+            Parameters = parameters,
+            Signature = AltchaCrypto.HmacHex(AltchaHashAlgorithm.Sha256, System.Text.Encoding.UTF8.GetBytes(CanonicalJson.Serialize(parameters)), Secret),
+        };
+        var solution = AltchaPow.SolveChallenge(new SolveChallengeOptions { Challenge = issued });
+
+        // Issued with the caller's serializer, read back the way the library reads a submitted payload.
+        var received = System.Text.Json.JsonSerializer.Deserialize<Challenge>(
+            System.Text.Json.JsonSerializer.Serialize(issued, options), AltchaJson.SerializerOptions)!;
+
+        Assert.True(Verify(received, solution).Verified);
+    }
+
     [Fact]
     public void OddPrefixRoundTripVerifies()
     {

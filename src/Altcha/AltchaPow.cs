@@ -208,7 +208,9 @@ public static class AltchaPow
     /// algorithm, invalid key prefix, salt or nonce hex) give <see cref="VerifySolutionResult.InvalidSolution"/>.
     /// </summary>
     /// <exception cref="ArgumentException"><see cref="VerifySolutionOptions.HmacSignatureSecret"/> is null or empty.</exception>
-    /// <exception cref="AltchaException">The received challenge parameters cannot be canonicalized.</exception>
+    /// <exception cref="AltchaException">
+    /// The received challenge parameters cannot be canonicalized or bound to <see cref="ChallengeParameters"/>.
+    /// </exception>
     public static VerifySolutionResult VerifySolution(VerifySolutionOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);

@@ -14,6 +14,10 @@ internal static class CanonicalJson
     // Largest integer a JS number represents exactly; beyond it JS would round, so format as a double.
     private const long MaxSafeInteger = 9007199254740991;
 
+    /// <summary>
+    /// Serializes typed parameters as JS signs them: keys sorted, null optionals left out (JS drops only
+    /// <c>undefined</c>), so zero or empty values are signed exactly as they are serialized.
+    /// </summary>
     public static string Serialize(ChallengeParameters p)
     {
         var sb = new StringBuilder(256);
@@ -22,7 +26,7 @@ internal static class CanonicalJson
         WriteString(sb, p.Algorithm);
         WriteKey(sb, "cost");
         sb.Append(p.Cost.ToString(CultureInfo.InvariantCulture));
-        if (p.Data is { Count: > 0 })
+        if (p.Data is not null)
         {
             WriteKey(sb, "data");
             try
@@ -36,7 +40,7 @@ internal static class CanonicalJson
             }
         }
 
-        if (p.ExpiresAt is { } expiresAt and not 0)
+        if (p.ExpiresAt is { } expiresAt)
         {
             WriteKey(sb, "expiresAt");
             sb.Append(double.IsFinite(expiresAt) ? JsNumber.Format(expiresAt) : "null");
@@ -46,13 +50,13 @@ internal static class CanonicalJson
         sb.Append(p.KeyLength.ToString(CultureInfo.InvariantCulture));
         WriteKey(sb, "keyPrefix");
         WriteString(sb, p.KeyPrefix ?? string.Empty);
-        if (!string.IsNullOrEmpty(p.KeySignature))
+        if (p.KeySignature is not null)
         {
             WriteKey(sb, "keySignature");
             WriteString(sb, p.KeySignature);
         }
 
-        if (p.MemoryCost is { } memoryCost and not 0)
+        if (p.MemoryCost is { } memoryCost)
         {
             WriteKey(sb, "memoryCost");
             sb.Append(memoryCost.ToString(CultureInfo.InvariantCulture));
@@ -60,7 +64,7 @@ internal static class CanonicalJson
 
         WriteKey(sb, "nonce");
         WriteString(sb, p.Nonce);
-        if (p.Parallelism is { } parallelism and not 0)
+        if (p.Parallelism is { } parallelism)
         {
             WriteKey(sb, "parallelism");
             sb.Append(parallelism.ToString(CultureInfo.InvariantCulture));

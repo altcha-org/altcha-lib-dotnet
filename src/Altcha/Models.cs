@@ -4,7 +4,11 @@ using Altcha.Serialization;
 
 namespace Altcha;
 
-/// <summary>Key-derivation parameters of a v2 challenge. These are what the challenge signature covers.</summary>
+/// <summary>
+/// Key-derivation parameters of a v2 challenge. These are what the challenge signature covers.
+/// Null optional properties are never written, whatever the serializer options, so the wire form always matches
+/// the signed form.
+/// </summary>
 public sealed class ChallengeParameters
 {
     /// <summary>KDF algorithm, e.g. <c>PBKDF2/SHA-256</c>, <c>SHA-256</c>, <c>SCRYPT</c> or <c>ARGON2ID</c>.</summary>
@@ -33,22 +37,27 @@ public sealed class ChallengeParameters
 
     /// <summary>HMAC of the expected derived key, enabling verification without re-deriving.</summary>
     [JsonPropertyName("keySignature")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public string? KeySignature { get; set; }
 
     /// <summary>Memory cost (scrypt r, Argon2 memory in KiB).</summary>
     [JsonPropertyName("memoryCost")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? MemoryCost { get; set; }
 
     /// <summary>Parallelism (scrypt p, Argon2 lanes).</summary>
     [JsonPropertyName("parallelism")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public int? Parallelism { get; set; }
 
     /// <summary>Expiry as unix seconds; may be fractional (JS issuers sign any number). 0 means no expiry.</summary>
     [JsonPropertyName("expiresAt")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public double? ExpiresAt { get; set; }
 
     /// <summary>Arbitrary signed data attached to the challenge.</summary>
     [JsonPropertyName("data")]
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public Dictionary<string, JsonElement>? Data { get; set; }
 
     /// <summary>

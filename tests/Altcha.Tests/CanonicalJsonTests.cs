@@ -23,7 +23,7 @@ public class CanonicalJsonTests
     }
 
     [Fact]
-    public void OmitsEmptyOptionalFieldsButKeepsEmptyKeyPrefix()
+    public void SignsZeroAndEmptyFieldsAndOmitsOnlyNullsLikeJavaScript()
     {
         var parameters = new ChallengeParameters
         {
@@ -39,6 +39,16 @@ public class CanonicalJsonTests
             ExpiresAt = 0,
             Data = [],
         };
+
+        Assert.Equal(
+            """{"algorithm":"SHA-256","cost":1,"data":{},"expiresAt":0,"keyLength":32,"keyPrefix":"","keySignature":"","memoryCost":0,"nonce":"aa","parallelism":0,"salt":"bb"}""",
+            CanonicalJson.Serialize(parameters));
+
+        parameters.KeySignature = null;
+        parameters.MemoryCost = null;
+        parameters.Parallelism = null;
+        parameters.ExpiresAt = null;
+        parameters.Data = null;
 
         Assert.Equal(
             """{"algorithm":"SHA-256","cost":1,"keyLength":32,"keyPrefix":"","nonce":"aa","salt":"bb"}""",
