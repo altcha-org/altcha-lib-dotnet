@@ -216,6 +216,21 @@ public class PowTests
     }
 
     [Fact]
+    public void UnsignedChallengeHasNoKeySignature()
+    {
+        var challenge = AltchaPow.CreateChallenge(new CreateChallengeOptions
+        {
+            Algorithm = "SHA-256",
+            Cost = 1,
+            Counter = 5,
+            HmacKeySignatureSecret = "key-secret",
+        });
+
+        Assert.Null(challenge.Signature);
+        Assert.Null(challenge.Parameters.KeySignature);
+    }
+
+    [Fact]
     public void InvalidDerivedKeyHexOnFastPathIsInvalidSolution()
     {
         var challenge = AltchaPow.CreateChallenge(new CreateChallengeOptions

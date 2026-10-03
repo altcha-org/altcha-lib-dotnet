@@ -35,7 +35,10 @@ public sealed class CreateChallengeOptions
     /// <summary>Secret for the challenge signature. Without it the challenge is unsigned.</summary>
     public string? HmacSignatureSecret { get; set; }
 
-    /// <summary>Secret for the key signature (deterministic challenges only), enabling fast verification.</summary>
+    /// <summary>
+    /// Secret for the key signature (deterministic, signed challenges only), enabling fast verification.
+    /// Ignored without <see cref="HmacSignatureSecret"/>, as in JS.
+    /// </summary>
     public string? HmacKeySignatureSecret { get; set; }
 
     /// <summary>Derived key length in bytes; 0 means 32.</summary>
@@ -126,7 +129,7 @@ public static class AltchaPow
         var saltBytes = RandomNumberGenerator.GetBytes(12);
         var nonceBytes = RandomNumberGenerator.GetBytes(12);
 
-        // Issued lowercase: JS matches odd-length prefixes against lowercase key hex, case-sensitively.
+        // Issued lowercase, like prefixes taken from the derived key.
         var keyPrefix = string.IsNullOrEmpty(options.KeyPrefix) ? DefaultKeyPrefix : options.KeyPrefix.ToLowerInvariant();
         KeyPrefix.Parse(keyPrefix);
 
@@ -152,14 +155,14 @@ public static class AltchaPow
             parameters.KeyPrefix = AltchaCrypto.ToHex(derivedKey.AsSpan(0, Math.Min(prefixLength, derivedKey.Length)));
         }
 
-        if (derivedKey is { Length: > 0 } && !string.IsNullOrEmpty(options.HmacKeySignatureSecret))
-        {
-            parameters.KeySignature = AltchaCrypto.HmacHex(options.HmacAlgorithm, derivedKey, options.HmacKeySignatureSecret);
-        }
-
         var challenge = new Challenge { Parameters = parameters };
         if (!string.IsNullOrEmpty(options.HmacSignatureSecret))
         {
+            if (derivedKey is { Length: > 0 } && !string.IsNullOrEmpty(options.HmacKeySignatureSecret))
+            {
+                parameters.KeySignature = AltchaCrypto.HmacHex(options.HmacAlgorithm, derivedKey, options.HmacKeySignatureSecret);
+            }
+
             challenge.Signature = Sign(options.HmacAlgorithm, parameters, options.HmacSignatureSecret);
         }
 
