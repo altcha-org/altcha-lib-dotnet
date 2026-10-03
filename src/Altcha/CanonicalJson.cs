@@ -72,6 +72,23 @@ internal static class CanonicalJson
         return sb.ToString();
     }
 
+    /// <summary>Serializes a received parameters object exactly as JS signs its parsed form.</summary>
+    public static string Serialize(JsonElement parameters)
+    {
+        var sb = new StringBuilder(256);
+        try
+        {
+            WriteElement(sb, parameters, sortKeys: true);
+        }
+        catch (InvalidOperationException e)
+        {
+            // JsonElement refuses to decode strings containing lone surrogate escapes.
+            throw new AltchaException("Invalid challenge parameters.", e);
+        }
+
+        return sb.ToString();
+    }
+
     private static void WriteKey(StringBuilder sb, string key, bool first = false)
     {
         if (!first)
@@ -87,12 +104,28 @@ internal static class CanonicalJson
     /// Writes an object's properties in the order a JS object enumerates them: array-index keys first in ascending
     /// numeric order, then all other keys, sorted by UTF-16 code units when <paramref name="sortKeys"/> is true,
     /// otherwise in document order. JS <c>sortKeys</c> leaves everything below an array unsorted, but
-    /// <c>JSON.stringify</c> still hoists index keys there.
+    /// <c>JSON.stringify</c> still hoists index keys there. Duplicate keys collapse like <c>JSON.parse</c>:
+    /// the last value wins at the position of the first occurrence.
     /// </summary>
     private static void WriteObject(StringBuilder sb, IEnumerable<KeyValuePair<string, JsonElement>> properties, bool sortKeys)
     {
+        var unique = new List<KeyValuePair<string, JsonElement>>();
+        var positions = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach (var property in properties)
+        {
+            if (positions.TryGetValue(property.Key, out var position))
+            {
+                unique[position] = property;
+            }
+            else
+            {
+                positions.Add(property.Key, unique.Count);
+                unique.Add(property);
+            }
+        }
+
         // OrderBy is stable, so non-index keys (all mapped to uint.MaxValue, never a valid index) keep document order.
-        var ordered = properties.OrderBy(static p => TryGetArrayIndex(p.Key, out var index) ? index : uint.MaxValue);
+        var ordered = unique.OrderBy(static p => TryGetArrayIndex(p.Key, out var index) ? index : uint.MaxValue);
         if (sortKeys)
         {
             ordered = ordered.ThenBy(static p => p.Key, StringComparer.Ordinal);

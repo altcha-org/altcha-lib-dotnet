@@ -50,13 +50,24 @@ public sealed class ChallengeParameters
     /// <summary>Arbitrary signed data attached to the challenge.</summary>
     [JsonPropertyName("data")]
     public Dictionary<string, JsonElement>? Data { get; set; }
+
+    /// <summary>
+    /// The JSON object these parameters were deserialized from, when read through <see cref="Challenge.Parameters"/>.
+    /// <see cref="AltchaPow.VerifySolution"/> verifies the signature over it and derives the key from it.
+    /// </summary>
+    internal JsonElement? ReceivedJson { get; set; }
 }
 
 /// <summary>A v2 challenge: parameters plus their HMAC signature.</summary>
 public sealed class Challenge
 {
-    /// <summary>The challenge parameters.</summary>
+    /// <summary>
+    /// The challenge parameters. When deserialized, the received JSON is kept and verified exactly as received
+    /// (unknown keys, JSON types and key casing are all covered by the signature); later property changes are ignored
+    /// by <see cref="AltchaPow.VerifySolution"/>.
+    /// </summary>
     [JsonPropertyName("parameters")]
+    [JsonConverter(typeof(ReceivedParametersConverter))]
     public ChallengeParameters Parameters { get; set; } = new();
 
     /// <summary>Hex HMAC of the canonical JSON of <see cref="Parameters"/>.</summary>

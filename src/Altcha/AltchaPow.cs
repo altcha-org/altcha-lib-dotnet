@@ -210,7 +210,9 @@ public static class AltchaPow
         ArgumentException.ThrowIfNullOrEmpty(hmacSignatureSecret, $"{nameof(options)}.{nameof(options.HmacSignatureSecret)}");
         var start = Stopwatch.GetTimestamp();
         var result = new VerifySolutionResult();
-        var parameters = options.Challenge?.Parameters ?? new ChallengeParameters();
+        // Deserialized parameters are verified exactly as received, and the key is derived from the same JSON.
+        var received = options.Challenge?.Parameters?.ReceivedJson;
+        var parameters = received is { } json ? ParseReceived(json) : options.Challenge?.Parameters ?? new ChallengeParameters();
         var solution = options.Solution ?? new Solution();
 
         try
@@ -225,8 +227,9 @@ public static class AltchaPow
 
             result.InvalidSignature = true;
             var signature = options.Challenge?.Signature;
+            var signedJson = received is { } signedParameters ? CanonicalJson.Serialize(signedParameters) : CanonicalJson.Serialize(parameters);
             if (string.IsNullOrEmpty(signature)
-                || !AltchaCrypto.ConstantTimeEquals(Sign(options.HmacAlgorithm, parameters, hmacSignatureSecret), signature))
+                || !AltchaCrypto.ConstantTimeEquals(AltchaCrypto.HmacHex(options.HmacAlgorithm, Encoding.UTF8.GetBytes(signedJson), hmacSignatureSecret), signature))
             {
                 return result;
             }
@@ -278,6 +281,18 @@ public static class AltchaPow
 
     private static string Sign(AltchaHashAlgorithm algorithm, ChallengeParameters parameters, string secret) =>
         AltchaCrypto.HmacHex(algorithm, Encoding.UTF8.GetBytes(CanonicalJson.Serialize(parameters)), secret);
+
+    private static ChallengeParameters ParseReceived(JsonElement json)
+    {
+        try
+        {
+            return json.Deserialize<ChallengeParameters>(AltchaJson.SerializerOptions)!;
+        }
+        catch (JsonException e)
+        {
+            throw new AltchaException("Invalid challenge parameters.", e);
+        }
+    }
 
     private static byte[] DecodeHex(string? hex, string name) =>
         AltchaCrypto.TryFromHex(hex, out var bytes) ? bytes : throw new AltchaException($"Invalid {name} hex.");
