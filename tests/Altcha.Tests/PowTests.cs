@@ -120,6 +120,22 @@ public class PowTests
         Assert.False(result.Verified);
     }
 
+    [Theory]
+    [InlineData(null)]
+    [InlineData("")]
+    public void VerifyWithoutSignatureSecretThrows(string? secret)
+    {
+        var challenge = AltchaPow.CreateChallenge(new CreateChallengeOptions { Algorithm = "SHA-256", Cost = 1 });
+        var solution = AltchaPow.SolveChallenge(new SolveChallengeOptions { Challenge = challenge });
+
+        Assert.ThrowsAny<ArgumentException>(() => AltchaPow.VerifySolution(new VerifySolutionOptions
+        {
+            Challenge = challenge,
+            Solution = solution,
+            HmacSignatureSecret = secret,
+        }));
+    }
+
     [Fact]
     public void WrongSolutionIsInvalid()
     {

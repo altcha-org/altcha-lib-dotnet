@@ -338,7 +338,7 @@ if (result.Verified)
 }
 ```
 
-Verification checks, in order: expiry (`Expired`), the challenge signature (`InvalidSignature`), and then the solution (`InvalidSolution`). The solution is checked against the key signature when the challenge has one and `HmacKeySignatureSecret` is set, and by re-deriving the key otherwise. `VerifySolution` does not protect against replay. Track used challenges yourself, or use `Altcha.AspNetCore`.
+`HmacSignatureSecret` is required; `VerifySolution` throws `ArgumentException` when it is null or empty. Verification checks, in order: expiry (`Expired`), the challenge signature (`InvalidSignature`; a missing signature is invalid), and then the solution (`InvalidSolution`). The solution is checked against the key signature when the challenge has one and `HmacKeySignatureSecret` is set, and by re-deriving the key otherwise. `VerifySolution` does not protect against replay. Track used challenges yourself, or use `Altcha.AspNetCore`.
 
 `AltchaSecrets.DeriveHmacKeySecret(masterSecret)` derives a key-signature secret from a master secret, the same way as the JS `deriveHmacKeySecret`.
 

@@ -85,7 +85,7 @@ public sealed class VerifySolutionOptions
     /// <summary>HMAC algorithm for signatures.</summary>
     public AltchaHashAlgorithm HmacAlgorithm { get; set; } = AltchaHashAlgorithm.Sha256;
 
-    /// <summary>Secret for the challenge signature. Without it the signature is not checked.</summary>
+    /// <summary>Secret for the challenge signature. Required: verification never skips the signature check.</summary>
     public string? HmacSignatureSecret { get; set; }
 
     /// <summary>Secret for the key signature, enabling verification without re-deriving the key.</summary>
@@ -201,10 +201,13 @@ public static class AltchaPow
     /// Verifies a solution: expiry, then the challenge signature, then either the key signature (fast path)
     /// or a re-derivation of the key (slow path).
     /// </summary>
+    /// <exception cref="ArgumentException"><see cref="VerifySolutionOptions.HmacSignatureSecret"/> is null or empty.</exception>
     /// <exception cref="AltchaException">The challenge parameters are malformed or the algorithm is unsupported.</exception>
     public static VerifySolutionResult VerifySolution(VerifySolutionOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
+        var hmacSignatureSecret = options.HmacSignatureSecret;
+        ArgumentException.ThrowIfNullOrEmpty(hmacSignatureSecret, $"{nameof(options)}.{nameof(options.HmacSignatureSecret)}");
         var start = Stopwatch.GetTimestamp();
         var result = new VerifySolutionResult();
         var parameters = options.Challenge?.Parameters ?? new ChallengeParameters();
@@ -218,18 +221,15 @@ public static class AltchaPow
                 return result;
             }
 
-            if (!string.IsNullOrEmpty(options.HmacSignatureSecret))
+            result.InvalidSignature = true;
+            var signature = options.Challenge?.Signature;
+            if (string.IsNullOrEmpty(signature)
+                || !AltchaCrypto.ConstantTimeEquals(Sign(options.HmacAlgorithm, parameters, hmacSignatureSecret), signature))
             {
-                result.InvalidSignature = true;
-                var signature = options.Challenge?.Signature;
-                if (string.IsNullOrEmpty(signature)
-                    || !AltchaCrypto.ConstantTimeEquals(Sign(options.HmacAlgorithm, parameters, options.HmacSignatureSecret), signature))
-                {
-                    return result;
-                }
-
-                result.InvalidSignature = false;
+                return result;
             }
+
+            result.InvalidSignature = false;
 
             if (!string.IsNullOrEmpty(parameters.KeySignature) && !string.IsNullOrEmpty(options.HmacKeySignatureSecret))
             {
