@@ -51,6 +51,17 @@ public class ServerSignatureTests
         Assert.False(result.Verified);
     }
 
+    [Theory]
+    [InlineData("-5", true)]
+    [InlineData("0", false)]
+    public void NonPositiveExpire(string expire, bool expired)
+    {
+        var result = ServerSignature.Verify(Sign($"expire={expire}&verified=true"), Key);
+
+        Assert.Equal(expired, result.Expired);
+        Assert.Equal(!expired, result.Verified);
+    }
+
     [Fact]
     public void UnverifiedSolutionIsRejected()
     {

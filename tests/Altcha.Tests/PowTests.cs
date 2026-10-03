@@ -90,6 +90,41 @@ public class PowTests
     }
 
     [Fact]
+    public void ExpiresAtCurrentSecondIsExpired()
+    {
+        var challenge = AltchaPow.CreateChallenge(new CreateChallengeOptions
+        {
+            Algorithm = "PBKDF2/SHA-256",
+            Cost = 1,
+            ExpiresAt = DateTimeOffset.FromUnixTimeSeconds(DateTimeOffset.UtcNow.ToUnixTimeSeconds()),
+            HmacSignatureSecret = Secret,
+        });
+        Thread.Sleep(1);
+
+        Assert.True(Verify(challenge, new Solution()).Expired);
+    }
+
+    [Theory]
+    [InlineData(-1, true)]
+    [InlineData(0, false)]
+    public void NonPositiveExpiresAt(long expiresAt, bool expired)
+    {
+        var challenge = AltchaPow.CreateChallenge(new CreateChallengeOptions
+        {
+            Algorithm = "SHA-256",
+            Cost = 1,
+            ExpiresAt = DateTimeOffset.FromUnixTimeSeconds(expiresAt),
+            HmacSignatureSecret = Secret,
+        });
+        var solution = AltchaPow.SolveChallenge(new SolveChallengeOptions { Challenge = challenge });
+
+        var result = Verify(challenge, solution);
+
+        Assert.Equal(expired, result.Expired);
+        Assert.Equal(!expired, result.Verified);
+    }
+
+    [Fact]
     public void TamperedParametersInvalidateSignature()
     {
         var challenge = AltchaPow.CreateChallenge(new CreateChallengeOptions

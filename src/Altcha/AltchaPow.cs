@@ -215,7 +215,9 @@ public static class AltchaPow
 
         try
         {
-            if (parameters.ExpiresAt > 0 && DateTimeOffset.UtcNow.ToUnixTimeSeconds() > parameters.ExpiresAt)
+            // JS: `expiresAt && expiresAt < Date.now() / 1000` — 0 means no expiry, current time is fractional.
+            if (parameters.ExpiresAt is { } expiresAt and not 0
+                && expiresAt < DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0)
             {
                 result.Expired = true;
                 return result;

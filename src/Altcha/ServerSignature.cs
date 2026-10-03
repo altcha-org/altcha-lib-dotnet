@@ -222,7 +222,8 @@ public static class ServerSignature
         var expected = AltchaCrypto.HmacHex(algorithm, AltchaCrypto.Hash(algorithm, Encoding.UTF8.GetBytes(verificationData)), hmacSecret);
         var vd = ParseVerificationData(verificationData);
 
-        var expired = vd.Expire > 0 && vd.Expire < DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        // JS: `expire && expire < Math.floor(Date.now() / 1000)` — 0 means no expiry, whole seconds.
+        var expired = vd.Expire is { } expire and not 0 && expire < DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         var invalidSignature = !AltchaCrypto.ConstantTimeEquals(payload.Signature, expected);
         var invalidSolution = !vd.Verified || !payload.Verified;
 
