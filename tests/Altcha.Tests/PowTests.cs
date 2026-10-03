@@ -287,6 +287,53 @@ public class PowTests
             AltchaPow.CreateChallenge(new CreateChallengeOptions { Algorithm = "SHA-256", Cost = 1, KeyPrefix = "zz" }));
     }
 
+    [Theory]
+    [InlineData("A", "a")]
+    [InlineData("0AB", "0ab")]
+    public void CreateChallengeIssuesLowercaseKeyPrefix(string keyPrefix, string expected)
+    {
+        var challenge = AltchaPow.CreateChallenge(new CreateChallengeOptions
+        {
+            Algorithm = "SHA-256",
+            Cost = 1,
+            KeyPrefix = keyPrefix,
+            HmacSignatureSecret = Secret,
+        });
+
+        Assert.Equal(expected, challenge.Parameters.KeyPrefix);
+    }
+
+    [Fact]
+    public void UppercaseOddKeyPrefixMatchesLowercaseKey()
+    {
+        // A signed challenge from another issuer with prefix "F2E": the prefix is normalized to lowercase for matching.
+        var lowercase = SignedChallenge("f2e");
+        var uppercase = SignedChallenge("F2E");
+        var solution = AltchaPow.SolveChallenge(new SolveChallengeOptions { Challenge = uppercase });
+
+        Assert.StartsWith("f2e", solution.DerivedKey, StringComparison.Ordinal);
+        Assert.True(Verify(uppercase, solution).Verified);
+        Assert.True(Verify(lowercase, solution).Verified);
+    }
+
+    private static Challenge SignedChallenge(string keyPrefix)
+    {
+        var parameters = new ChallengeParameters
+        {
+            Algorithm = "SHA-256",
+            Nonce = "000102030405060708090a0b0c0d0e0f",
+            Salt = "101112131415161718191a1b1c1d1e1f",
+            KeyPrefix = keyPrefix,
+            Cost = 1,
+            KeyLength = 32,
+        };
+        return new Challenge
+        {
+            Parameters = parameters,
+            Signature = AltchaCrypto.HmacHex(AltchaHashAlgorithm.Sha256, System.Text.Encoding.UTF8.GetBytes(CanonicalJson.Serialize(parameters)), Secret),
+        };
+    }
+
     [Fact]
     public void SignedDataRoundTripsThroughWireJson()
     {
@@ -323,6 +370,9 @@ public class PowTests
         Assert.False(KeyPrefix.Parse("00b").Matches(key));
         Assert.True(KeyPrefix.Parse("00aabbcc").Matches(key));
         Assert.False(KeyPrefix.Parse("00aabbcc0").Matches(key));
+        Assert.True(KeyPrefix.Parse("00AABBCC").Matches(key));
+        Assert.True(KeyPrefix.Parse("00A").Matches(key));
+        Assert.False(KeyPrefix.Parse("00B").Matches(key));
         Assert.Throws<AltchaException>(() => KeyPrefix.Parse("0g"));
     }
 

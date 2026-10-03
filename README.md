@@ -274,7 +274,7 @@ All settings bind from the `Altcha` section of your configuration: `appsettings.
 | `Challenge:Deterministic` | `true` | The server picks the counter and derives the key prefix. When `false`, a random challenge with `KeyPrefix` is issued |
 | `Challenge:CounterMin` / `CounterMax` | `5000` / `10000` | Range of the deterministic counter (min inclusive, max exclusive) |
 | `Challenge:KeyPrefixLength` | half of `KeyLength` | Prefix length in bytes for deterministic challenges |
-| `Challenge:KeyPrefix` | `00` | Hex prefix for random challenges |
+| `Challenge:KeyPrefix` | `00` | Hex prefix for random challenges; issued lowercase |
 | `Sentinel:Mode` | `Local` | `Local` or `Remote` |
 | `Sentinel:ApiSecret` | — | HMAC key (local) or `secret` (remote) |
 | `Sentinel:VerifyUrl` | — | `/v1/verify/signature` URL. Required for `Remote` |

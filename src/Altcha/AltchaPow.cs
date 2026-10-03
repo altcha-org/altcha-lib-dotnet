@@ -50,7 +50,7 @@ public sealed class CreateChallengeOptions
     /// <summary>Parallelism; 0 means unset.</summary>
     public int Parallelism { get; set; }
 
-    /// <summary>Hex key prefix for random (non-deterministic) challenges; defaults to <c>00</c>.</summary>
+    /// <summary>Hex key prefix for random (non-deterministic) challenges; defaults to <c>00</c>. Issued lowercase.</summary>
     public string? KeyPrefix { get; set; }
 }
 
@@ -126,7 +126,8 @@ public static class AltchaPow
         var saltBytes = RandomNumberGenerator.GetBytes(12);
         var nonceBytes = RandomNumberGenerator.GetBytes(12);
 
-        var keyPrefix = string.IsNullOrEmpty(options.KeyPrefix) ? DefaultKeyPrefix : options.KeyPrefix;
+        // Issued lowercase: JS matches odd-length prefixes against lowercase key hex, case-sensitively.
+        var keyPrefix = string.IsNullOrEmpty(options.KeyPrefix) ? DefaultKeyPrefix : options.KeyPrefix.ToLowerInvariant();
         KeyPrefix.Parse(keyPrefix);
 
         var parameters = new ChallengeParameters

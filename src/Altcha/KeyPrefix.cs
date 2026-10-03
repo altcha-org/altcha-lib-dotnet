@@ -1,8 +1,8 @@
 namespace Altcha;
 
 /// <summary>
-/// A parsed hex key prefix. Odd-length prefixes are supported: the trailing hex digit is matched
-/// against the high nibble of the next key byte, mirroring the JS client's hex-string comparison.
+/// A parsed hex key prefix, matched case-insensitively (the prefix is normalized to lowercase, like the key hex).
+/// Odd-length prefixes are supported: the trailing hex digit is matched against the high nibble of the next key byte.
 /// </summary>
 internal readonly struct KeyPrefix
 {
@@ -31,12 +31,15 @@ internal readonly struct KeyPrefix
             return new KeyPrefix(bytes, 0, false);
         }
 
-        if (!AltchaCrypto.TryFromHex(hex[even..] + "0", out var nibble))
+        var last = hex[even];
+        if (!char.IsAsciiHexDigit(last))
         {
             throw new AltchaException("Invalid key prefix hex.");
         }
 
-        return new KeyPrefix(bytes, nibble[0], true);
+        // `| 0x20` lowercases A-F.
+        var nibble = char.IsAsciiDigit(last) ? last - '0' : (last | 0x20) - 'a' + 10;
+        return new KeyPrefix(bytes, (byte)(nibble << 4), true);
     }
 
     public bool Matches(ReadOnlySpan<byte> key)
