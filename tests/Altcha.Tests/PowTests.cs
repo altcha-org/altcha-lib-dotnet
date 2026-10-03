@@ -331,13 +331,35 @@ public class PowTests
         Assert.True(Verify(lowercase, solution).Verified);
     }
 
-    private static Challenge SignedChallenge(string keyPrefix)
+    [Theory]
+    [InlineData("SHA-256", "zz", "1011", "0001")]
+    [InlineData("SHA-256", "0g", "1011", "0001")]
+    [InlineData("SHA-256", "00", "zz", "0001")]
+    [InlineData("SHA-256", "00", "abc", "0001")]
+    [InlineData("SHA-256", "00", "1011", "xyz")]
+    [InlineData("MD5", "00", "1011", "0001")]
+    public void MalformedSignedParametersAreInvalidSolution(string algorithm, string keyPrefix, string salt, string nonce)
+    {
+        var challenge = SignedChallenge(keyPrefix, salt, nonce, algorithm);
+
+        var result = Verify(challenge, new Solution { Counter = 1, DerivedKey = "00" });
+
+        Assert.False(result.InvalidSignature);
+        Assert.True(result.InvalidSolution);
+        Assert.False(result.Verified);
+    }
+
+    private static Challenge SignedChallenge(
+        string keyPrefix,
+        string salt = "101112131415161718191a1b1c1d1e1f",
+        string nonce = "000102030405060708090a0b0c0d0e0f",
+        string algorithm = "SHA-256")
     {
         var parameters = new ChallengeParameters
         {
-            Algorithm = "SHA-256",
-            Nonce = "000102030405060708090a0b0c0d0e0f",
-            Salt = "101112131415161718191a1b1c1d1e1f",
+            Algorithm = algorithm,
+            Nonce = nonce,
+            Salt = salt,
             KeyPrefix = keyPrefix,
             Cost = 1,
             KeyLength = 32,

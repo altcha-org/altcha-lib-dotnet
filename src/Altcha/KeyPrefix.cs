@@ -17,29 +17,35 @@ internal readonly struct KeyPrefix
         _hasNibble = hasNibble;
     }
 
-    public static KeyPrefix Parse(string? hex)
+    public static KeyPrefix Parse(string? hex) =>
+        TryParse(hex, out var prefix) ? prefix : throw new AltchaException("Invalid key prefix hex.");
+
+    public static bool TryParse(string? hex, out KeyPrefix prefix)
     {
+        prefix = default;
         hex ??= string.Empty;
         var even = hex.Length & ~1;
         if (!AltchaCrypto.TryFromHex(hex[..even], out var bytes))
         {
-            throw new AltchaException("Invalid key prefix hex.");
+            return false;
         }
 
         if (even == hex.Length)
         {
-            return new KeyPrefix(bytes, 0, false);
+            prefix = new KeyPrefix(bytes, 0, false);
+            return true;
         }
 
         var last = hex[even];
         if (!char.IsAsciiHexDigit(last))
         {
-            throw new AltchaException("Invalid key prefix hex.");
+            return false;
         }
 
         // `| 0x20` lowercases A-F.
         var nibble = char.IsAsciiDigit(last) ? last - '0' : (last | 0x20) - 'a' + 10;
-        return new KeyPrefix(bytes, (byte)(nibble << 4), true);
+        prefix = new KeyPrefix(bytes, (byte)(nibble << 4), true);
+        return true;
     }
 
     public bool Matches(ReadOnlySpan<byte> key)

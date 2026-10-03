@@ -203,10 +203,11 @@ public static class AltchaPow
 
     /// <summary>
     /// Verifies a solution: expiry, then the challenge signature, then either the key signature (fast path)
-    /// or a re-derivation of the key (slow path).
+    /// or a re-derivation of the key (slow path). Signed parameters that cannot be used for derivation (unsupported
+    /// algorithm, invalid key prefix, salt or nonce hex) give <see cref="VerifySolutionResult.InvalidSolution"/>.
     /// </summary>
     /// <exception cref="ArgumentException"><see cref="VerifySolutionOptions.HmacSignatureSecret"/> is null or empty.</exception>
-    /// <exception cref="AltchaException">The challenge parameters are malformed or the algorithm is unsupported.</exception>
+    /// <exception cref="AltchaException">The received challenge parameters cannot be canonicalized.</exception>
     public static VerifySolutionResult VerifySolution(VerifySolutionOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
@@ -264,10 +265,15 @@ public static class AltchaPow
                 return result;
             }
 
-            var deriveKey = options.DeriveKey ?? KeyDerivation.Resolve(parameters.Algorithm);
-            var prefix = KeyPrefix.Parse(parameters.KeyPrefix);
-            var salt = DecodeHex(parameters.Salt, "salt");
-            var nonce = DecodeHex(parameters.Nonce, "nonce");
+            var deriveKey = options.DeriveKey;
+            if ((deriveKey is null && !KeyDerivation.TryResolve(parameters.Algorithm, out deriveKey))
+                || !KeyPrefix.TryParse(parameters.KeyPrefix, out var prefix)
+                || !AltchaCrypto.TryFromHex(parameters.Salt, out var salt)
+                || !AltchaCrypto.TryFromHex(parameters.Nonce, out var nonce))
+            {
+                return result;
+            }
+
             var derivedKey = deriveKey(parameters, salt, AltchaCrypto.PasswordWithCounter(nonce, solution.Counter));
             if (AltchaCrypto.ConstantTimeEquals(AltchaCrypto.ToHex(derivedKey), solution.DerivedKey) && prefix.Matches(derivedKey))
             {
