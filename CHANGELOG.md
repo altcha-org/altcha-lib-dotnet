@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.2.0
+
+### Features
+
+- Sentinel v2 remote verification (`POST /v2/verify/signature`): `VerifyServerOptions.ApiKey` (ASP.NET Core: `Sentinel:ApiKey`) sends the id and secret of a `restricted` or `full` API key as HTTP Basic credentials instead of `secret` in the body. Without `ApiKey`, requests are unchanged, for Sentinel v1 and the Sentinel v2 `/v1` alias. `ApiKey` without a secret throws `ArgumentException` (ASP.NET Core: fails options validation).
+
+### Changes
+
+- `SentinelClient.VerifyAsync` no longer retries 4xx statuses other than 400 (e.g. `401`, `403`, `429`): it throws `AltchaSentinelException` after the first attempt, with the `AltchaHttpStatusException` as `InnerException`. 400 is still returned as a verdict; 5xx and other statuses are still retried.
+
 ## 1.1.0
 
 Compatibility and security fixes so that the library behaves like the JS reference implementation (`altcha-lib` v2).
