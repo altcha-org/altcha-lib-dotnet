@@ -212,7 +212,25 @@ Point the widget at Sentinel and choose how its payloads are verified.
 ```
 
 - **`Local`** (default): the server signature is checked with `ApiSecret` as the HMAC key. No network call is made.
-- **`Remote`**: the raw payload is posted to `VerifyUrl` (`https://sentinel.example.com/v1/verify/signature`). `ApiSecret` is sent as `secret`. Timeouts, network errors and unexpected statuses are retried (`Retries`, `RetryDelay`, `RetryBackoff`). If every attempt fails, the request fails with `backend_error`.
+- **`Remote`**: the raw payload is posted to `VerifyUrl`. Timeouts, network errors and unexpected 5xx/other statuses are retried (`Retries`, `RetryDelay`, `RetryBackoff`); 4xx statuses other than 400 (e.g. `401`/`403` for bad credentials) are not. If the request still fails, it fails with `backend_error`.
+  - **Sentinel v2**: `VerifyUrl` is `https://sentinel.example.com/v2/verify/signature`. Set `ApiKey` and `ApiSecret` to the id and secret of a `restricted` or `full` API key of the account that owns the widget's key. They are sent as HTTP Basic credentials.
+  - **Sentinel v1** (and the Sentinel v2 `/v1` alias): `VerifyUrl` is `https://sentinel.example.com/v1/verify/signature`. Leave `ApiKey` unset. `ApiSecret` is optional and sent as `secret`; when it is set, Sentinel also checks that the payload belongs to that API key.
+
+Sentinel v2 remote configuration:
+
+```json
+{
+  "Altcha": {
+    "Sentinel": {
+      "Mode": "Remote",
+      "ChallengeUrl": "https://sentinel.example.com/v2/challenge?apiKey=key_...",
+      "VerifyUrl": "https://sentinel.example.com/v2/verify/signature",
+      "ApiKey": "key_...",
+      "ApiSecret": "sec_..."
+    }
+  }
+}
+```
 
 Both modes apply the same policies: the classifications in `RejectClassifications` are rejected (default `BAD`), `fieldsHash` is checked against the submitted form fields when present, and replay protection applies.
 
@@ -276,8 +294,9 @@ All settings bind from the `Altcha` section of your configuration: `appsettings.
 | `Challenge:KeyPrefixLength` | half of `KeyLength` | Prefix length in bytes for deterministic challenges |
 | `Challenge:KeyPrefix` | `00` | Hex prefix for random challenges; issued lowercase |
 | `Sentinel:Mode` | `Local` | `Local` or `Remote` |
-| `Sentinel:ApiSecret` | — | HMAC key (local) or `secret` (remote) |
-| `Sentinel:VerifyUrl` | — | `/v1/verify/signature` URL. Required for `Remote` |
+| `Sentinel:ApiSecret` | — | HMAC key (local); secret of `ApiKey` (remote, v2) or `secret` (remote, v1) |
+| `Sentinel:ApiKey` | — | Sentinel v2 remote: id of a `restricted`/`full` API key, sent with `ApiSecret` as Basic credentials. Requires `ApiSecret` |
+| `Sentinel:VerifyUrl` | — | `/v2/verify/signature` or `/v1/verify/signature` URL. Required for `Remote` |
 | `Sentinel:ChallengeUrl` | — | Challenge URL rendered by the tag helper |
 | `Sentinel:Timeout` | `00:00:10` | Timeout per remote attempt |
 | `Sentinel:Retries` | `1` | Retries after the first remote attempt |
@@ -363,14 +382,17 @@ if (result.Verified)
 
 ### Verify a payload remotely with Sentinel
 
+Sentinel v2 (`/v2/verify/signature`) authenticates the request with a `restricted` or `full` API key of the account that owns the payload's key. Set `ApiKey` and `Secret` to its id and secret; they are sent as HTTP Basic credentials, and nothing is sent as `secret` in the body:
+
 ```csharp
 var client = new SentinelClient(httpClient);
 
 var result = await client.VerifyAsync(new VerifyServerOptions
 {
-    Url = new Uri("https://sentinel.example.com/v1/verify/signature"),
+    Url = new Uri("https://sentinel.example.com/v2/verify/signature"),
     Payload = base64Payload,        // raw string or ServerSignaturePayload
-    Secret = "sentinel-api-secret",
+    ApiKey = "key_...",             // restricted or full API key
+    Secret = "sec_...",
     Timeout = TimeSpan.FromSeconds(5),
     Retries = 2,
     RetryBackoff = RetryBackoff.Exponential,
@@ -382,7 +404,11 @@ if (result.Verified)
 }
 ```
 
-Sentinel's verdict is always returned, including a rejection (`Verified = false`, `Reason`, e.g. `PAYLOAD_ALREADY_USED`) and an HTTP 400 response. Network errors, timeouts, unexpected statuses and invalid responses are retried. When every attempt fails, `AltchaSentinelException` is thrown, and its `InnerException` holds the last error (`AltchaHttpStatusException`, `TimeoutException`, `HttpRequestException` or `JsonException`). Cancelling `cancellationToken` throws `OperationCanceledException`.
+For Sentinel v1 (`/v1/verify/signature`, also served by Sentinel v2 with `v1_compat`), leave `ApiKey` unset. `Secret` is then optional: it is sent as `secret` in the body, and Sentinel checks that it is the secret of the payload's API key (`WRONG_API_KEY_SECRET` otherwise).
+
+`ApiKey` without `Secret` throws `ArgumentException`.
+
+Sentinel's verdict is always returned, including a rejection (`Verified = false`, `Reason`, e.g. `PAYLOAD_ALREADY_USED`, `INVALID_PAYLOAD`, or `API_KEY_NOT_ALLOWED` when the payload belongs to another account than `ApiKey`) and an HTTP 400 response. Other 4xx statuses (e.g. Sentinel v2's `401`/`403` for missing or `public` credentials, `429`) are not retried: `AltchaSentinelException` is thrown at once. Network errors, timeouts, other unexpected statuses and invalid responses are retried. When every attempt fails, `AltchaSentinelException` is thrown. Its `InnerException` holds the last error (`AltchaHttpStatusException`, `TimeoutException`, `HttpRequestException` or `JsonException`). Cancelling `cancellationToken` throws `OperationCanceledException`.
 
 ## Key derivation algorithms
 
@@ -413,20 +439,21 @@ dotnet run --project examples/Altcha.Example
 
 ### Sentinel
 
-In [`examples/Altcha.Example.Sentinel`](./examples/Altcha.Example.Sentinel), challenges come from Sentinel and payloads are verified by Sentinel's `/v1/verify/signature` API (`Sentinel:Mode` `Remote`). The app has no `HmacSignatureSecret` and no challenge endpoint. After a successful submission, the page shows Sentinel's classification, score, country, time zone, device and reasons.
+In [`examples/Altcha.Example.Sentinel`](./examples/Altcha.Example.Sentinel), challenges come from Sentinel and payloads are verified by Sentinel's `/v2/verify/signature` API (`Sentinel:Mode` `Remote`). The app has no `HmacSignatureSecret` and no challenge endpoint. After a successful submission, the page shows Sentinel's classification, score, country, time zone, device and reasons.
 
 Set your Sentinel URLs and API key, then run it:
 
 ```sh
 cd examples/Altcha.Example.Sentinel
-dotnet user-secrets set "Altcha:Sentinel:ChallengeUrl" "https://sentinel.example.com/v1/challenge?apiKey=key_..."
-dotnet user-secrets set "Altcha:Sentinel:VerifyUrl" "https://sentinel.example.com/v1/verify/signature"
+dotnet user-secrets set "Altcha:Sentinel:ChallengeUrl" "https://sentinel.example.com/v2/challenge?apiKey=key_..."
+dotnet user-secrets set "Altcha:Sentinel:VerifyUrl" "https://sentinel.example.com/v2/verify/signature"
+dotnet user-secrets set "Altcha:Sentinel:ApiKey" "key_..."
 dotnet user-secrets set "Altcha:Sentinel:ApiSecret" "sec_..."
 dotnet run
 # http://localhost:5081
 ```
 
-`ApiSecret` is optional in remote mode. When it is set, Sentinel also checks that the payload belongs to that API key.
+`ApiKey` and `ApiSecret` are a `restricted` or `full` API key of the account that owns the widget's (public) key. For Sentinel v1, use the `/v1/...` URLs and leave `ApiKey` unset; `ApiSecret` is then optional, and when it is set, Sentinel also checks that the payload belongs to that API key.
 
 ## Development
 

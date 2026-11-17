@@ -85,6 +85,28 @@ public class SentinelClientTests
         Assert.Equal(3, stub.Requests.Count);
     }
 
+    [Theory]
+    [InlineData(HttpStatusCode.Unauthorized)]
+    [InlineData(HttpStatusCode.Forbidden)]
+    [InlineData(HttpStatusCode.TooManyRequests)]
+    public async Task ClientErrorsOtherThanBadRequestAreNotRetried(HttpStatusCode status)
+    {
+        var stub = new StubHttpMessageHandler()
+            .Enqueue(status, """{"code":"API_KEY_REQUIRED","error":"API key required.","statusCode":401}""")
+            .Enqueue(HttpStatusCode.OK, """{"verified":true}""");
+
+        var ex = await Assert.ThrowsAsync<AltchaSentinelException>(() => Client(stub).VerifyAsync(new VerifyServerOptions
+        {
+            Url = Url,
+            Payload = "p",
+            Retries = 3,
+            RetryDelay = TimeSpan.FromMilliseconds(1),
+        }));
+
+        Assert.Equal((int)status, Assert.IsType<AltchaHttpStatusException>(ex.InnerException).StatusCode);
+        Assert.Single(stub.Requests);
+    }
+
     [Fact]
     public async Task TimedOutAttemptIsReportedAsTimeout()
     {
@@ -126,6 +148,37 @@ public class SentinelClientTests
         var request = stub.Requests.Single();
         Assert.Equal("yes", request.Headers["X-Custom"]);
         Assert.Equal("""{"payload":"p"}""", request.Body);
+    }
+
+    [Fact]
+    public async Task V2AuthenticatesWithBasicCredentialsInsteadOfBodySecret()
+    {
+        var stub = new StubHttpMessageHandler().Enqueue(HttpStatusCode.OK, """{"apiKey":"key_widget","verificationData":null,"verified":true}""");
+
+        var result = await Client(stub).VerifyAsync(new VerifyServerOptions
+        {
+            Url = new Uri("https://sentinel.test/v2/verify/signature"),
+            Payload = "p",
+            ApiKey = "key_backend",
+            Secret = "sec_backend",
+            Headers = new Dictionary<string, string> { ["Authorization"] = "Bearer stale", ["X-Custom"] = "yes" },
+        });
+
+        var request = stub.Requests.Single();
+        Assert.True(result.Verified);
+        Assert.Equal("Basic " + Convert.ToBase64String(Encoding.UTF8.GetBytes("key_backend:sec_backend")), request.Headers["Authorization"]);
+        Assert.Equal("yes", request.Headers["X-Custom"]);
+        Assert.Equal("""{"payload":"p"}""", request.Body);
+    }
+
+    [Fact]
+    public async Task V2ApiKeyWithoutSecretThrowsBeforeSending()
+    {
+        var stub = new StubHttpMessageHandler();
+
+        await Assert.ThrowsAsync<ArgumentException>(() =>
+            Client(stub).VerifyAsync(new VerifyServerOptions { Url = Url, Payload = "p", ApiKey = "key_backend" }));
+        Assert.Empty(stub.Requests);
     }
 
     [Fact]
@@ -197,6 +250,45 @@ public class SentinelClientTests
         Assert.True(vd.Verified);
         Assert.Null(vd.Email);
         Assert.Null(vd.Location);
+    }
+
+    [Fact]
+    public async Task ParsesSentinelV2VerificationData()
+    {
+        // The shape Sentinel v2's /v2/verify/signature returns: new groups (challenge, his, ...), and id, fieldsHash,
+        // device.edk and params.* kept as strings.
+        var stub = new StubHttpMessageHandler().Enqueue(
+            HttpStatusCode.OK,
+            """
+            {"apiKey":"key_1k4pfmle60061hr87tv","verified":true,"verificationData":{
+              "challenge":{"algorithm":"PBKDF2/SHA-256","issued":1791856880,"protectionLevel":"frictionless"},
+              "classification":"GOOD","score":0.5,"reasons":["r1"],
+              "device":{"browser":"Firefox","edk":"0123","os":"Linux","score":0,"triggeredRules":[],"type":"desktop"},
+              "ip":{"asname":"AS1","countryCode":"cz","networks":"a,b","score":1,"triggeredRules":["ip.vpn"]},
+              "his":{"assistive":false,"automation":0,"flags":"","mode":"passive"},
+              "location":{"countryCode":"cz","score":0,"timeZone":"Europe/Prague","triggeredRules":[]},
+              "expire":1791858092,"fields":["email","name"],"fieldsHash":"0042","id":"5437",
+              "ipAddress":"203.0.113.1","origin":"https://example.com","params":{"formId":"contact","zip":"01234"},
+              "time":1791856892,"verified":true}}
+            """);
+
+        var result = await Client(stub).VerifyAsync(new VerifyServerOptions { Url = Url, Payload = "p", ApiKey = "k", Secret = "s" });
+
+        var vd = result.VerificationData!;
+        Assert.Equal("key_1k4pfmle60061hr87tv", result.ApiKey);
+        Assert.Equal("5437", vd.Id);
+        Assert.Equal("0042", vd.FieldsHash);
+        Assert.Equal(["email", "name"], vd.Fields);
+        Assert.Equal(1791858092, vd.Expire);
+        Assert.Equal("GOOD", vd.Classification);
+        Assert.Equal("0123", vd.Device!.Edk);
+        Assert.Equal("Linux", vd.Device.Extra!["os"].GetString());
+        Assert.Equal(["ip.vpn"], vd.Ip!.TriggeredRules!);
+        Assert.Equal("cz", vd.Location!.CountryCode);
+        Assert.Equal("01234", vd.Params!["zip"]);
+        Assert.Equal("PBKDF2/SHA-256", vd.Extra!["challenge"].GetProperty("algorithm").GetString());
+        Assert.True(vd.Extra.ContainsKey("his"));
+        Assert.True(vd.Verified);
     }
 
     private static SentinelClient Client(StubHttpMessageHandler stub) => new(new HttpClient(stub));

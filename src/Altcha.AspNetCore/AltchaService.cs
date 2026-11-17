@@ -266,6 +266,7 @@ public sealed partial class AltchaService : IAltchaService
                     {
                         Url = new Uri(sentinel.VerifyUrl!),
                         Payload = rawPayload,
+                        ApiKey = sentinel.ApiKey,
                         Secret = sentinel.ApiSecret,
                         Headers = sentinel.Headers,
                         Timeout = sentinel.Timeout,

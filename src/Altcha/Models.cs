@@ -380,14 +380,17 @@ public sealed class VerifyServerSignatureResult
     public ServerSignatureVerificationData? VerificationData { get; set; }
 }
 
-/// <summary>Result of remote Sentinel verification (<c>POST /v1/verify/signature</c>).</summary>
+/// <summary>Result of remote Sentinel verification (<c>POST /v2/verify/signature</c> or <c>POST /v1/verify/signature</c>).</summary>
 public sealed class VerifyServerResult
 {
     /// <summary>True when Sentinel verified the payload.</summary>
     [JsonPropertyName("verified")]
     public bool Verified { get; set; }
 
-    /// <summary>Rejection reason, e.g. <c>PAYLOAD_ALREADY_USED</c>.</summary>
+    /// <summary>
+    /// Rejection reason, e.g. <c>PAYLOAD_ALREADY_USED</c>, <c>INVALID_PAYLOAD</c>, <c>API_KEY_NOT_ALLOWED</c> (v2) or
+    /// <c>WRONG_API_KEY_SECRET</c> (v1); for an HTTP 400 response, its <c>error</c>.
+    /// </summary>
     [JsonPropertyName("reason")]
     public string? Reason { get; set; }
 

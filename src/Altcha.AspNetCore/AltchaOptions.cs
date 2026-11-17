@@ -24,7 +24,10 @@ public enum SentinelVerifyMode
     /// <summary>Verify the HMAC signature locally with <see cref="AltchaSentinelOptions.ApiSecret"/>.</summary>
     Local,
 
-    /// <summary>Call Sentinel's <c>/v1/verify/signature</c> API at <see cref="AltchaSentinelOptions.VerifyUrl"/>.</summary>
+    /// <summary>
+    /// Call Sentinel's <c>/v2/verify/signature</c> (with <see cref="AltchaSentinelOptions.ApiKey"/>) or
+    /// <c>/v1/verify/signature</c> API at <see cref="AltchaSentinelOptions.VerifyUrl"/>.
+    /// </summary>
     Remote,
 }
 
@@ -105,10 +108,20 @@ public sealed class AltchaSentinelOptions
     /// <summary>Local signature verification or remote API verification.</summary>
     public SentinelVerifyMode Mode { get; set; } = SentinelVerifyMode.Local;
 
-    /// <summary>API secret: the HMAC key in <see cref="SentinelVerifyMode.Local"/> mode, the <c>secret</c> in remote mode.</summary>
+    /// <summary>
+    /// API secret. In <see cref="SentinelVerifyMode.Local"/> mode, the HMAC key (the secret of the key that signs the payloads).
+    /// In remote mode, the secret of <see cref="ApiKey"/> (Sentinel v2), or the <c>secret</c> sent in the body (Sentinel v1).
+    /// </summary>
     public string? ApiSecret { get; set; }
 
-    /// <summary>Full <c>/v1/verify/signature</c> URL for remote mode.</summary>
+    /// <summary>
+    /// Sentinel v2 remote mode: the id of a <c>restricted</c> or <c>full</c> API key of the account that owns the widget's key.
+    /// When set, requests are authenticated with HTTP Basic <c>ApiKey:ApiSecret</c>, as <c>/v2/verify/signature</c> requires.
+    /// Leave unset for Sentinel v1.
+    /// </summary>
+    public string? ApiKey { get; set; }
+
+    /// <summary>Full <c>/v2/verify/signature</c> or <c>/v1/verify/signature</c> URL for remote mode.</summary>
     public string? VerifyUrl { get; set; }
 
     /// <summary>Sentinel challenge URL, rendered by the tag helper instead of the local challenge endpoint.</summary>

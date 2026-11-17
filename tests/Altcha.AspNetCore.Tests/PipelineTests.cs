@@ -172,6 +172,33 @@ public class PipelineTests
     }
 
     [Fact]
+    public async Task SentinelRemoteV2AuthenticatesWithApiKey()
+    {
+        var stub = new StubHttpMessageHandler().Enqueue(HttpStatusCode.OK, """{"apiKey":"key_widget","verified":true,"verificationData":{"id":"r1"}}""");
+        await using var app = await StartRemoteAsync(stub, o =>
+        {
+            o.Sentinel.VerifyUrl = "https://sentinel.test/v2/verify/signature";
+            o.Sentinel.ApiKey = "key_backend";
+            o.Sentinel.ApiSecret = "sec_backend";
+        });
+        var payload = TestApp.SentinelPayload("id=r1&verified=true");
+
+        var response = await app.GetTestClient().PostFormAsync("/minimal", ("altcha", payload));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.Equal("Basic " + Convert.ToBase64String(Encoding.UTF8.GetBytes("key_backend:sec_backend")), stub.Authorizations.Single());
+        using var body = JsonDocument.Parse(stub.RequestBodies.Single());
+        Assert.False(body.RootElement.TryGetProperty("secret", out _));
+    }
+
+    [Fact]
+    public async Task SentinelRemoteApiKeyWithoutApiSecretFailsOnStart()
+    {
+        await Assert.ThrowsAsync<OptionsValidationException>(() =>
+            StartRemoteAsync(new StubHttpMessageHandler(), o => o.Sentinel.ApiKey = "key_backend"));
+    }
+
+    [Fact]
     public async Task SentinelRemoteMapsReplayAndBackendErrors()
     {
         var stub = new StubHttpMessageHandler()
@@ -215,13 +242,16 @@ public class PipelineTests
         Assert.Equal(["NEUTRAL"], options.Sentinel.RejectClassifications!);
     }
 
-    private static Task<Microsoft.AspNetCore.Builder.WebApplication> StartRemoteAsync(StubHttpMessageHandler stub) =>
+    private static Task<Microsoft.AspNetCore.Builder.WebApplication> StartRemoteAsync(
+        StubHttpMessageHandler stub,
+        Action<AltchaOptions>? configure = null) =>
         TestApp.StartAsync(
             o =>
             {
                 o.Sentinel.Mode = SentinelVerifyMode.Remote;
                 o.Sentinel.VerifyUrl = "https://sentinel.test/v1/verify/signature";
                 o.Sentinel.Retries = 0;
+                configure?.Invoke(o);
             },
             s => s.AddHttpClient(AltchaDefaults.SentinelHttpClientName).ConfigurePrimaryHttpMessageHandler(() => stub));
 }

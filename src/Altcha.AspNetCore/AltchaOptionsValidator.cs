@@ -86,6 +86,11 @@ public sealed class AltchaOptionsValidator : IValidateOptions<AltchaOptions>
             {
                 failures.Add($"{Prefix}Sentinel:VerifyUrl must be an absolute http(s) URL when Sentinel:Mode is Remote.");
             }
+
+            if (sentinel.Mode == SentinelVerifyMode.Remote && !string.IsNullOrEmpty(sentinel.ApiKey) && string.IsNullOrEmpty(sentinel.ApiSecret))
+            {
+                failures.Add($"{Prefix}Sentinel:ApiSecret is required when Sentinel:ApiKey is set.");
+            }
         }
 
         return failures.Count > 0 ? ValidateOptionsResult.Fail(failures) : ValidateOptionsResult.Success;

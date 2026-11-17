@@ -102,6 +102,8 @@ internal sealed class StubHttpMessageHandler : HttpMessageHandler
 
     public List<string> RequestBodies { get; } = [];
 
+    public List<string?> Authorizations { get; } = [];
+
     public StubHttpMessageHandler Enqueue(HttpStatusCode status, string body)
     {
         _responses.Enqueue((status, body));
@@ -111,6 +113,7 @@ internal sealed class StubHttpMessageHandler : HttpMessageHandler
     protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
     {
         RequestBodies.Add(await request.Content!.ReadAsStringAsync(cancellationToken));
+        Authorizations.Add(request.Headers.Authorization?.ToString());
         var (status, body) = _responses.Dequeue();
         return new HttpResponseMessage(status) { Content = new StringContent(body, Encoding.UTF8, "application/json") };
     }
